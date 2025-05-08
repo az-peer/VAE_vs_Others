@@ -19,6 +19,7 @@ parser.add_argument('--model_save_path', type=str, default='vae_model.pth', help
 parser.add_argument('--inference_save_path', type=str, default='inference_reconstruction.png', help='Path to save the inference image')
 parser.add_argument('--num_samples', type=int, default=8, help='Number of samples for inference')
 parser.add_argument('--dataset_save_path', type=str, default='generated_dataset.pt', help='Path to save the generated dataset')
+parser.add_argument('--CNN', action="store_true", help="Run the CNN for classification")
 ```
 
 An example if I wanted to train for more epochs I would run.
@@ -26,3 +27,4 @@ An example if I wanted to train for more epochs I would run.
 python main.py --num_epochs 10
 ```
 Note that `add_noise` will be true if you just include it in the command. 
+We can also now run the CNN using the `--CNN` flag. May need to repurpose some of this code for later. 
