@@ -4,10 +4,10 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import transforms, datasets
 from torchvision.utils import save_image
 from tqdm import tqdm
-from model import VariationalAutoEncoder
+from model import VariationalAutoEncoder, CNN
 import numpy as np
 import argparse
-from engine import train_model, inference
+from engine import train_model, inference, evaluate_cnn
 
 ###################################### PARSING ARGUMENTS ######################################
 parser = argparse.ArgumentParser(description='Train VAE model')
@@ -23,6 +23,7 @@ parser.add_argument('--model_save_path', type=str, default='vae_model.pth', help
 parser.add_argument('--inference_save_path', type=str, default='inference_reconstruction.png', help='Path to save the inference image')
 parser.add_argument('--num_samples', type=int, default=8, help='Number of samples for inference')
 parser.add_argument('--dataset_save_path', type=str, default='generated_dataset.pt', help='Path to save the generated dataset')
+parser.add_argument('--CNN', action="store_true", help="Run the CNN for classification")
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,8 +39,10 @@ model_save_path = args.model_save_path
 inference_save_path = args.inference_save_path
 num_samples = args.num_samples  
 dataset_save_path = args.dataset_save_path
+cnn_flag = args.CNN
 
 ###################################### LOADING DATASET ######################################
+print("LOADING THAT BITCHASS DATA IN")
 dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
 random_indices = np.random.choice(len(dataset), size=5000, replace=False)
 subset_train_dataset = Subset(dataset, random_indices)
@@ -48,12 +51,25 @@ test_dataset = datasets.FashionMNIST(root=".data/", train=False, transform=trans
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 ###################################### EXPERIMENT SETUP ######################################
-model = VariationalAutoEncoder(input_dim=input_dim, hidden_dim=hidden_dim, z_dim=z_dim)
+if add_noise_flag:
+    print(f"RUNNING DVAE BITCH")
+if cnn_flag:
+    print("Running CNN")
+else:
+    print("RUNNING VAE")
+
+if cnn_flag:
+    model = CNN()
+    loss_fn = nn.CrossEntropyLoss()
+else:
+    model = VariationalAutoEncoder(input_dim=input_dim, hidden_dim=hidden_dim, z_dim=z_dim)
+    loss_fn = nn.BCELoss(reduction='sum')
+
 model = model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=karpathy_constant)
-loss_fn = nn.BCELoss(reduction='sum')
 
 ###################################### TRAINING ######################################
+print("FINISHED TRAINING BABY")
 train_model(
     model=model,
     train_loader=train_loader,
@@ -64,15 +80,25 @@ train_model(
     input_dim=input_dim,
     add_noise_flag=add_noise_flag,
     noise_factor=noise_factor,
-    save_path=model_save_path
+    save_path=model_save_path,
+    cnn_flag=cnn_flag
 )
+print("DONE TRAINING!")
 
 ###################################### INFERENCE ######################################
+print("GENERATING DATA")
 inference(
     model=model,
     test_loader=test_loader,
     device=device,
     num_samples=num_samples,
     save_path=inference_save_path,
-    dataset_save_path=dataset_save_path
+    dataset_save_path=dataset_save_path,
+    cnn_flag=cnn_flag
 )
+print("FINISHED CODE")
+
+# Evaluate CNN if the flag is set
+if cnn_flag:
+    accuracy = evaluate_cnn(model, test_loader, device)
+    print(f"CNN Accuracy: {accuracy:.2f}")

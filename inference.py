@@ -46,4 +46,5 @@ def inference(model, test_loader, device, num_samples=8, save_path="inference_re
     print(f"Generated dataset saved to {dataset_save_path}")
 
 # Call the inference function
-inference(model, test_loader, device, num_samples=8, save_path="inference_reconstruction.png", dataset_save_path="generated_dataset.pt")
+if __name__ == "__main__":
+    inference(model, test_loader, device, num_samples=8, save_path="inference_reconstruction.png", dataset_save_path="generated_dataset.pt")
