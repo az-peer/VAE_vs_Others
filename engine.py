@@ -33,11 +33,12 @@ def train_model(
         if not cnn_flag:
             for i, (x, _) in loop:
                 x = x.to(device).view(x.shape[0], input_dim)
-                if not add_noise_flag:
+                if (not add_noise_flag) & (i == 0) & (epoch == 0):
                     print("Running Normal VAE")
                     x_reconstructed, mu, logvar = model(x)
                 else:
-                    print("Running DVAE")
+                    if (i == 0) & (epoch == 0):
+                        print("Running DVAE")
                     x_noisy = add_noise(x, noise_factor)
                     x_reconstructed, mu, logvar = model(x_noisy)
                 recontruction_loss = loss_fn(x_reconstructed, x)
