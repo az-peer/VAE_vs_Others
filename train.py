@@ -12,11 +12,18 @@ device = torch.device("cpu")
 input_dim = 784
 hidden_dim = 200
 z_dim = 20
-num_epochs = 60
+num_epochs = 1
 batch_size = 128
 karpathy_constant = 3e-4
+# add noise to the inputs 
+add_noise_flag = False
+noise_factor = 0.3
 
-
+# a functioon to add noise to the input 
+def add_noise(x, noise_factor=0.3):
+    noisy = x + noise_factor * torch.randn_like(x)
+    noisy = torch.clamp(noisy, 0., 1.)
+    return noisy
 
 dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
 random_indices = np.random.choice(len(dataset), size=5000, replace=False)
@@ -45,7 +52,16 @@ for epoch in range(num_epochs):
     for i, (x, _) in loop:
         x = x.to(device).view(x.shape[0], input_dim)
 
-        x_reconstructed, mu, logvar = model(x)
+        if not add_noise_flag:
+            print("Running Normal VAE")
+            x_reconstructed, mu, logvar = model(x)
+        else:
+            print("Running DVAE")
+            x_noisy = add_noise(x, noise_factor)
+            x_reconstructed, mu, logvar = model(x_noisy)
+
+
+        
 
         recontruction_loss = loss_fn(x_reconstructed, x)
 
