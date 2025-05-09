@@ -53,7 +53,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 ###################################### EXPERIMENT SETUP ######################################
 if add_noise_flag:
     print(f"RUNNING DVAE BITCH")
-if cnn_flag:
+elif cnn_flag:
     print("Running CNN")
 else:
     print("RUNNING VAE")
@@ -70,6 +70,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=karpathy_constant)
 
 ###################################### TRAINING ######################################
 print("FINISHED TRAINING BABY")
+noisy_classes = list(range(10)) #[1, 7, 8, 9]
 train_model(
     model=model,
     train_loader=train_loader,
@@ -81,7 +82,8 @@ train_model(
     add_noise_flag=add_noise_flag,
     noise_factor=noise_factor,
     save_path=model_save_path,
-    cnn_flag=cnn_flag
+    cnn_flag=cnn_flag,
+    noisy_classes=noisy_classes if add_noise_flag else None  # Only pass noisy_classes if add_noise is True
 )
 print("DONE TRAINING!")
 
@@ -102,3 +104,14 @@ print("FINISHED CODE")
 if cnn_flag:
     accuracy = evaluate_cnn(model, test_loader, device)
     print(f"CNN Accuracy: {accuracy:.2f}")
+
+
+# replicate their code (5000 samples)
+# train the CNN (train/test split) and see how it does. Use the same train/test split for all the models.
+# train VAE on training data only and produce 500 more images, feed that into CNN and see how it does. Then have it produce 1000,15000,etc, etc and see how CNN improves. add a function.
+# Then do the same with DVAE.
+# try adding different types of noise to dvae (not just gaussian). can include augmentation as well. 
+
+# do same with vqae once azfals is done
+# see if we can add clip to cart part
+#gg

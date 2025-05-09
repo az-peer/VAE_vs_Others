@@ -9,9 +9,9 @@ import numpy as np
 
 ###################################### ADDING NOISE ######################################
 def add_noise(x, noise_factor=0.3):
-    noisy = x + noise_factor * torch.randn_like(x)
-    noisy = torch.clamp(noisy, 0., 1.)
-    return noisy
+    noise = torch.randn_like(x) * noise_factor
+    noisy = x + noise  # This preserves requires_grad from x
+    return torch.clamp(noisy, 0., 1.)
 
 ###################################### TRAINING ######################################
 def train_model(
@@ -25,45 +25,77 @@ def train_model(
     add_noise_flag=False,
     noise_factor=0.3,
     save_path="vae_model.pth",
-    cnn_flag = False
+    cnn_flag=False,
+    noisy_classes=None  # New parameter
 ):
     for epoch in range(num_epochs):
         loop = tqdm(enumerate(train_loader), total=len(train_loader))
         epoch_loss = 0
+
         if not cnn_flag:
-            for i, (x, _) in loop:
+            for i, (x, y) in loop:  # Now using (x, y) instead of just (x, _)
                 x = x.to(device).view(x.shape[0], input_dim)
-                if (not add_noise_flag) & (i == 0) & (epoch == 0):
-                    print("Running Normal VAE")
-                    x_reconstructed, mu, logvar = model(x)
+
+                if add_noise_flag:
+                    if i == 0 and epoch == 0:
+                        print(f"Running DVAE for classes {noisy_classes}")
+                    x = x.requires_grad_(True)
+                    
+                    if noisy_classes is not None:
+                        # Create mask for samples that should be noisy
+                        noise_mask = torch.tensor([label in noisy_classes for label in y]).to(device)
+                        noise_mask = noise_mask.view(-1, 1).expand_as(x)
+                        
+                        # Add noise only to selected classes
+                        x_noisy = x.clone()
+                        noise = torch.randn_like(x) * noise_factor
+                        x_noisy[noise_mask] = torch.clamp(x[noise_mask] + noise[noise_mask], 0., 1.)
+                        if i == 0 and epoch == 0:
+                            print(f"x_noisy requires_grad: {x_noisy.requires_grad}")
+                    else:
+                        # Add noise to all samples if no specific classes specified
+                        x_noisy = add_noise(x, noise_factor)
+                    x_input = x_noisy
                 else:
-                    if (i == 0) & (epoch == 0):
-                        print("Running DVAE")
-                    x_noisy = add_noise(x, noise_factor)
-                    x_reconstructed, mu, logvar = model(x_noisy)
-                recontruction_loss = loss_fn(x_reconstructed, x)
+                    if i == 0 and epoch == 0:
+                        print("Running Normal VAE")
+                    x_input = x
+
+                # Forward pass
+                x_reconstructed, mu, logvar = model(x_input)
+
+                # Loss calculation
+                reconstruction_loss = loss_fn(x_reconstructed, x)  # Compare to original clean x
                 kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-                loss = recontruction_loss + kl_div
+                loss = reconstruction_loss + kl_div
+
+                # Backpropagation
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
                 epoch_loss += loss.item()
                 loop.set_postfix(loss=loss.item())
+
         else:
+            # CNN training path
             for i, (x, y) in loop:
                 x, y = x.to(device), y.to(device)
                 y_pred = model(x)
                 loss = loss_fn(y_pred, y)
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
                 epoch_loss += loss.item()
                 loop.set_postfix(loss=loss.item())
 
-
         avg_epoch_loss = epoch_loss / len(train_loader.dataset)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Average Loss: {avg_epoch_loss:.2f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}], Average Loss: {avg_epoch_loss:.4f}")
+
     torch.save(model.state_dict(), save_path)
+
 
 ###################################### INFERENCE ######################################
 # Define inference function
@@ -75,8 +107,8 @@ def inference(model, test_loader, device, num_samples=8,
         print("CNN model - skipping reconstruction visualization")
         return
     
-    # Get one batch
-    test_batch = next(iter(test_loader))[0].to(device)
+    # Get one batch and limit to num_samples
+    test_batch = next(iter(test_loader))[0][:num_samples].to(device)  # Only take num_samples images
     test_batch_flat = test_batch.view(test_batch.size(0), -1)
     
     # Inference
@@ -89,7 +121,7 @@ def inference(model, test_loader, device, num_samples=8,
     
     # Concatenate and save
     comparison = torch.cat([original, recon_batch])
-    save_image(comparison, save_path, nrow=num_samples)
+    save_image(comparison, save_path, nrow=num_samples)  # Changed to num_samples*2 to show pairs in rows
     
     # Store generated images in a new dataset
     generated_dataset = TensorDataset(recon_batch)
