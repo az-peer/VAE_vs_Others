@@ -24,6 +24,7 @@ parser.add_argument('--inference_save_path', type=str, default='inference_recons
 parser.add_argument('--num_samples', type=int, default=8, help='Number of samples for inference')
 parser.add_argument('--dataset_save_path', type=str, default='generated_dataset.pt', help='Path to save the generated dataset')
 parser.add_argument('--CNN', action="store_true", help="Run the CNN for classification")
+
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

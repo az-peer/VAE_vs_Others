@@ -6,6 +6,7 @@ from torchvision.utils import save_image
 from tqdm import tqdm
 from model import VariationalAutoEncoder
 import numpy as np
+import pandas as pd
 
 ###################################### ADDING NOISE ######################################
 def add_noise(x, noise_factor=0.3):
@@ -65,9 +66,11 @@ def train_model(
                 x_reconstructed, mu, logvar = model(x_input)
 
                 # Loss calculation
+            # ADDING KL WEIGHT TO THIS MAYBE MAKE A HYPERPARAMETER FOR THIS
+                kl_weight = 1
                 reconstruction_loss = loss_fn(x_reconstructed, x)  # Compare to original clean x
                 kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-                loss = reconstruction_loss + kl_div
+                loss = reconstruction_loss + kl_weight * kl_div
 
                 # Backpropagation
                 optimizer.zero_grad()
@@ -78,6 +81,7 @@ def train_model(
                 loop.set_postfix(loss=loss.item())
 
         else:
+            
             # CNN training path
             for i, (x, y) in loop:
                 x, y = x.to(device), y.to(device)
@@ -132,12 +136,54 @@ def evaluate_cnn(model, test_loader, device):
     model.eval()
     correct = 0
     total = 0
+    class_correct = [0] * 10  # For each class
+    class_total = [0] * 10    # For each class
+    
     with torch.no_grad():
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
             y_pred = model(x)
             _, predicted = torch.max(y_pred, 1)
+            
+            # Update total and correct counts
             total += y.size(0)
             correct += (predicted == y).sum().item()
+            
+            # Update per-class counts
+            for i in range(y.size(0)):
+                label = y[i]
+                pred = predicted[i]
+                if label == pred:
+                    class_correct[label] += 1
+                class_total[label] += 1
+    
+    # Calculate overall accuracy
     accuracy = correct / total
-    return accuracy
+    
+    # Print overall accuracy
+    print(f"\nOverall Accuracy: {accuracy:.2%}")
+    
+    # Create results dictionary for DataFrame
+    results = {
+        'Class': list(range(10)),
+        'Correct': class_correct,
+        'Total': class_total,
+        'Accuracy': [class_correct[i] / class_total[i] if class_total[i] > 0 else 0 for i in range(10)]
+    }
+    
+    # Add overall accuracy to results
+    results['Overall_Accuracy'] = accuracy
+    
+    # Create DataFrame
+    results_df = pd.DataFrame(results)
+    
+    # Print per-class accuracy
+    print("\nPer-class Accuracy:")
+    for i in range(10):
+        if class_total[i] > 0:
+            class_accuracy = class_correct[i] / class_total[i]
+            print(f"Class {i}: {class_accuracy:.2%} ({class_correct[i]}/{class_total[i]})")
+        else:
+            print(f"Class {i}: No samples")
+    
+    return results_df
