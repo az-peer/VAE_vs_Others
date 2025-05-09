@@ -1,6 +1,10 @@
 from torch import nn
 import torch.nn.functional as F
 import torch
+import torchvision.utils as vutils
+import math
+import numpy as np
+
 
 class VariationalAutoEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim=200, z_dim=20):
@@ -67,7 +71,92 @@ class CNN(nn.Module):
         x = self.out(x)
 
         return x
+    
+# adding the VQ-VAE componenents 
+class VectorQuantizer(nn.Module):
+    # commitment cost is a hyperparameter 
+    # part of the loss 
+    def __init__(self, code_book_dim, embedding_dim, commitment_cost):
+        super().__init__()
+        self.code_book_dim = code_book_dim
+        self.embedding_dim = embedding_dim
+        self.commitment_cost = commitment_cost
 
+        self.embedding = nn.Embedding(code_book_dim, embedding_dim)
+        # randomly initialize codebook
+        self.embedding.weight.data.uniform_(-1/code_book_dim, 1/code_book_dim)
+
+    def forward(self, inputs):
+        # this flips the image from CxHxW to HxWxC
+        # check if this hold for our problem
+        # inputs = inputs.permute(0, 2, 3, 1).contiguous() # make sure this works for us PRINT THE SIZE WE WANT THIS TO BE BxHxWxC 
+        # input_shape = inputs.shape
+
+        # flat_input = inputs.view(-1, 1, self.embedding_dim)
+        flat_input = inputs.view(-1, self.embedding_dim)
+
+        # Calculate the distance between each embedding and each codebook vector
+        distances = torch.sum((flat_input.unsqueeze(1) - self.embedding.weight.unsqueeze(0)) ** 2, dim=2)
+
+
+        # Find the closest codebook vector
+        encoding_indices = torch.argmin(distances, dim=1)
+
+        # get the quantized vector 
+        quantized = self.embedding(encoding_indices)
+
+        # Create loss that pulls encoder embeddings and codebook vector selected
+        e_latent_loss = F.mse_loss(quantized.detach(), flat_input)
+        q_latent_loss = F.mse_loss(quantized, flat_input.detach())
+        loss = q_latent_loss + self.commitment_cost * e_latent_loss
+
+        # Reconstruct quantized representation using the encoder embeddings to allow for 
+        # backpropagation of gradients into encoder
+        if self.training:
+            quantized = inputs + (quantized - inputs).detach()
+        
+        return loss, quantized, encoding_indices
+
+
+class VQVAE(nn.Module):
+    def __init__(self, channel_in, hidden_dim,latent_channels=32, code_book_dim=64, commitment_cost=0.25):
+        super().__init__()
+        # we will only define the Vector quantizer 
+        self.vq = VectorQuantizer(code_book_dim=code_book_dim, 
+                                  embedding_dim=latent_channels, 
+                                  commitment_cost=commitment_cost)
+        
+        self.enc1 = nn.Linear(channel_in, hidden_dim)
+        self.enc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.enc3 = nn.Linear(hidden_dim, latent_channels)
+
+        self.dec1 = nn.Linear(latent_channels, hidden_dim)
+        self.dec2 = nn.Linear(hidden_dim, hidden_dim)
+        self.dec3 = nn.Linear(hidden_dim, channel_in)
+
+        self.relu = nn.ReLU()
+
+    def encode(self, x):
+        x = self.relu(self.enc1(x))
+        x = self.relu(self.enc2(x))
+        encoding = self.relu(self.enc3(x))
+
+        vq_loss, quantized, encoding_indicies = self.vq(encoding)
+        return vq_loss, quantized, encoding_indicies
+    
+    def decode(self, x):
+        x = self.relu(self.dec1(x))
+        x = self.relu(self.dec2(x))
+        img = self.dec3(x)
+        img = torch.sigmoid(img)
+        return img
+    
+    def forward(self, x):
+        vq_loss, quantized, encoding_indicies = self.encode(x)
+        recon = self.decode(quantized)
+        return recon, vq_loss, quantized
+    
+         
 
 if __name__ == "__main__":
     print("Testing VAE")
@@ -83,5 +172,17 @@ if __name__ == "__main__":
     cnn = CNN()
     output = cnn(x2)
     print(output.shape)
+
+    print("Testing VQ-VAE")
+    x = torch.randn(4, 28*28)
+    vqvae = VQVAE(channel_in=784, hidden_dim=10, latent_channels=4, code_book_dim=4)
+    recon, vq_loss, quantized = vqvae(x)
+    print("Finished running the VQ-VAE")
+    print("SHAPE OF THE RECON: ", recon.shape)
+    print("The loss", vq_loss)
+    print("The quantized representation", quantized.shape)
+
+
+
 
 

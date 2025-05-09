@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.utils as vutils
-import torch.distributions as Categorical
+import torchvision.utils as vutils
 import math
 import numpy as np
 import torch
@@ -239,10 +239,15 @@ for epoch in range(5):
     for i, data in enumerate(tqdm(train_loader, leave=False, desc="Training")):
 
         image = data[0]
+        
             # Forward pass the image in the data tuple
         recon_data, vq_loss, quantized = vae_net(image)
 
+        total_params = sum(p.numel() for p in vae_net.parameters())
+        print(f"The total number of params is {total_params}")
+
             # Calculate the loss
+            # LOSS USES MSE --> LOOK into this for later as well
         recon_loss = (recon_data - image).pow(2).mean()
         loss = vq_loss + recon_loss
 
