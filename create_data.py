@@ -260,25 +260,25 @@ def main():
     # print("- expirement_data/highly_imbalanced_dataset.pt")
 
     # now we load in the data and create a train and test 
-    balanced = torch.load('expirement_data/balanced/balanced_dataset.pt', weights_only=False)
+    # balanced = torch.load('expirement_data/balanced/balanced_dataset.pt', weights_only=False)
     
     # Split the balanced dataset into train and test sets
-    train_dataset, test_dataset = split_dataset(balanced, train_ratio=0.8)
+    # train_dataset, test_dataset = split_dataset(balanced, train_ratio=0.8)
     
     # Analyze the splits
-    print("\nAnalyzing train set distribution:")
-    analyze_dataset(train_dataset, "Train Set Distribution")
+    # print("\nAnalyzing train set distribution:")
+    # analyze_dataset(train_dataset, "Train Set Distribution")
     
-    print("\nAnalyzing test set distribution:")
-    analyze_dataset(test_dataset, "Test Set Distribution")
+    # print("\nAnalyzing test set distribution:")
+    # analyze_dataset(test_dataset, "Test Set Distribution")
     
     # Save the splits
-    torch.save(train_dataset, 'expirement_data/balanced/train_dataset.pt')
-    torch.save(test_dataset, 'expirement_data/balanced/test_dataset.pt')
+    # torch.save(train_dataset, 'expirement_data/balanced/train_dataset.pt')
+    # torch.save(test_dataset, 'expirement_data/balanced/test_dataset.pt')
     
-    print("\nTrain and test sets have been saved as:")
-    print("- expirement_data/high/train_dataset.pt")
-    print("- expirement_data/high/test_dataset.pt")
+    # print("\nTrain and test sets have been saved as:")
+    # print("- expirement_data/high/train_dataset.pt")
+    # print("- expirement_data/high/test_dataset.pt")
 
 if __name__ == "__main__":
     main()
