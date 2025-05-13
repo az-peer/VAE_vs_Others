@@ -5,9 +5,10 @@ from torchvision import datasets, transforms, utils as vutils
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-#from model import VariationalAutoEncoder, CNN, ConditionalGAN, VQVAE, BigGAN
-#from engine import train_model, train_gan, train_vqvae, train_biggan
-#from diffusers import UNet2DModel
+from models.VAE_CNN import VariationalAutoEncoder, CNN, VQVAE
+from models.GANS import ConditionalGAN, BigGAN
+from engine.train import train_model, train_gan, train_vqvae, train_biggan
+from inference.inference_plot import evaluate_cnn
 from diffusers import UNet2DConditionModel, DDPMScheduler, UNet2DModel
 from torchvision.transforms import functional as TF
 
