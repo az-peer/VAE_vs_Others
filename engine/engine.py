@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader, Subset, TensorDataset
 from torchvision import transforms, datasets
 from torchvision.utils import save_image
 from tqdm import tqdm
-from model import VariationalAutoEncoder
+from ..models.VAE_CNN import VariationalAutoEncoder
 import numpy as np
 import pandas as pd
 

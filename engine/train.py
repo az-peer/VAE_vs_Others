@@ -60,7 +60,7 @@ def add_noise_or_augmentation(x, noise_types=['gaussian'], noise_factor=0.3):
     
     return x_noisy
 
-###################################### TRAINING ######################################
+###################################### TRAINING VAE and DVAE ######################################
 def train_model(
     model,
     train_loader,
@@ -146,171 +146,7 @@ def train_model(
     # Return losses for plotting
     return pd.DataFrame(epoch_losses)
 
-def plot_noise_comparison(all_losses, save_path='Results/loss_comparison.png'):
-    """Plot loss curves for different noise types"""
-    plt.figure(figsize=(12, 8))
-    sns.set_style("whitegrid")
-    
-    # Create plot
-    for noise_type in all_losses['noise_types'].unique():
-        data = all_losses[all_losses['noise_types'] == noise_type]
-        plt.plot(data['epoch'], data['loss'], label=noise_type, marker='o', markersize=3)
-    
-    plt.xlabel('Epoch')
-    plt.ylabel('Average Loss')
-    plt.title('Loss Comparison Across Different Noise Types')
-    plt.legend(title='Noise Types')
-    
-    # Save plot
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path)
-    plt.close()
-
-###################################### INFERENCE ######################################
-# Define inference function
-def inference(model, test_loader, device, num_samples=8, 
-              save_path="inference_reconstruction.png", dataset_save_path="generated_dataset.pt",
-              cnn_flag=False):
-    if cnn_flag:
-        # For CNN, we don't need to save reconstructions
-        print("CNN model - skipping reconstruction visualization")
-        return
-    
-    # Get one batch and limit to num_samples
-    test_batch = next(iter(test_loader))[0][:num_samples].to(device)  # Only take num_samples images
-    test_batch_flat = test_batch.view(test_batch.size(0), -1)
-    
-    # Inference
-    with torch.no_grad():
-        recon_batch, _, _ = model(test_batch_flat)
-    
-    # Reshape for visualization
-    recon_batch = recon_batch.view(-1, 1, 28, 28)
-    original = test_batch.view(-1, 1, 28, 28)
-    
-    # Concatenate and save
-    comparison = torch.cat([original, recon_batch])
-    save_image(comparison, save_path, nrow=num_samples)  # Changed to num_samples*2 to show pairs in rows
-    
-    # Store generated images in a new dataset
-    generated_dataset = TensorDataset(recon_batch)
-    torch.save(generated_dataset, dataset_save_path)
-    print(f"Generated dataset saved to {dataset_save_path}")
-
-######################################################## EVALUATE CNN ###############################################################
-
-def evaluate_cnn(model, test_loader, device):
-    model.eval()
-    correct = 0
-    total = 0
-    class_correct = [0] * 10  # For each class
-    class_total = [0] * 10    # For each class
-    
-    with torch.no_grad():
-        for x, y in test_loader:
-            x, y = x.to(device), y.to(device)
-            y_pred = model(x)
-            _, predicted = torch.max(y_pred, 1)
-            
-            # Update total and correct counts
-            total += y.size(0)
-            correct += (predicted == y).sum().item()
-            
-            # Update per-class counts
-            for i in range(y.size(0)):
-                label = y[i]
-                pred = predicted[i]
-                if label == pred:
-                    class_correct[label] += 1
-                class_total[label] += 1
-    
-    # Calculate overall accuracy
-    accuracy = correct / total
-    
-    # Print overall accuracy
-    print(f"\nOverall Accuracy: {accuracy:.2%}")
-    
-    # Create results dictionary for DataFrame
-    results = {
-        'Class': list(range(10)),
-        'Correct': class_correct,
-        'Total': class_total,
-        'Accuracy': [class_correct[i] / class_total[i] if class_total[i] > 0 else 0 for i in range(10)]
-    }
-    
-    # Add overall accuracy to results
-    results['Overall_Accuracy'] = accuracy
-    
-    # Create DataFrame
-    results_df = pd.DataFrame(results)
-    
-    # Print per-class accuracy
-    print("\nPer-class Accuracy:")
-    for i in range(10):
-        if class_total[i] > 0:
-            class_accuracy = class_correct[i] / class_total[i]
-            print(f"Class {i}: {class_accuracy:.2%} ({class_correct[i]}/{class_total[i]})")
-        else:
-            print(f"Class {i}: No samples")
-    
-    return results_df
-
-def train_gan(model, train_loader, optimizers, criterion, device, num_epochs):
-    """Train Conditional GAN with advanced techniques"""
-    optimizer_G, optimizer_D = optimizers
-    scheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_G, num_epochs)
-    scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, num_epochs)
-    
-    for epoch in range(num_epochs):
-        for batch_idx, (real_images, labels) in enumerate(train_loader):
-            batch_size = real_images.size(0)
-            real_images = real_images.view(-1, 784).to(device)
-            labels = labels.to(device)
-            
-            # Dynamic label smoothing
-            real_labels = torch.ones(batch_size, 1).to(device) * 0.9
-            fake_labels = torch.zeros(batch_size, 1).to(device) * 0.1
-            
-            # Train Discriminator
-            for _ in range(1):  # Optional: multiple D updates
-                optimizer_D.zero_grad()
-                
-                # Real images
-                d_real = model.discriminator_forward(real_images, labels)
-                d_real_loss = criterion(d_real, real_labels)
-                
-                # Fake images
-                noise = torch.randn(batch_size, model.latent_dim).to(device)
-                fake_images = model.generator_forward(noise, labels)
-                d_fake = model.discriminator_forward(fake_images.detach(), labels)
-                d_fake_loss = criterion(d_fake, fake_labels)
-                
-                # Gradient penalty (optional)
-                alpha = torch.rand(batch_size, 1).to(device)
-                interpolated = (alpha * real_images + (1 - alpha) * fake_images.detach()).requires_grad_(True)
-                d_interpolated = model.discriminator_forward(interpolated, labels)
-                
-                d_loss = d_real_loss + d_fake_loss
-                d_loss.backward()
-                optimizer_D.step()
-
-            # Train Generator
-            for _ in range(2):  # Multiple G updates
-                optimizer_G.zero_grad()
-                noise = torch.randn(batch_size, model.latent_dim).to(device)
-                fake_images = model.generator_forward(noise, labels)
-                d_fake = model.discriminator_forward(fake_images, labels)
-                g_loss = criterion(d_fake, real_labels)
-                g_loss.backward()
-                optimizer_G.step()
-
-        # Update learning rates
-        scheduler_G.step()
-        scheduler_D.step()
-        
-        if (epoch + 1) % 10 == 0:
-            print(f'Epoch [{epoch+1}/{num_epochs}], D_loss: {d_loss.item():.4f}, G_loss: {g_loss.item():.4f}')
-
+############################################### VQ-VAE ##############################################################################
 def train_vqvae(model, train_loader, optimizer, device, num_epochs):
     """
     Train VQ-VAE model
@@ -368,6 +204,64 @@ def train_vqvae(model, train_loader, optimizer, device, num_epochs):
         'train_loss': train_loss_log
     }
 
+######################################################## GAN ################################################################
+def train_gan(model, train_loader, optimizers, criterion, device, num_epochs):
+    """Train Conditional GAN with advanced techniques"""
+    optimizer_G, optimizer_D = optimizers
+    scheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_G, num_epochs)
+    scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, num_epochs)
+    
+    for epoch in range(num_epochs):
+        for batch_idx, (real_images, labels) in enumerate(train_loader):
+            batch_size = real_images.size(0)
+            real_images = real_images.view(-1, 784).to(device)
+            labels = labels.to(device)
+            
+            # Dynamic label smoothing
+            real_labels = torch.ones(batch_size, 1).to(device) * 0.9
+            fake_labels = torch.zeros(batch_size, 1).to(device) * 0.1
+            
+            # Train Discriminator
+            for _ in range(1):  # Optional: multiple D updates
+                optimizer_D.zero_grad()
+                
+                # Real images
+                d_real = model.discriminator_forward(real_images, labels)
+                d_real_loss = criterion(d_real, real_labels)
+                
+                # Fake images
+                noise = torch.randn(batch_size, model.latent_dim).to(device)
+                fake_images = model.generator_forward(noise, labels)
+                d_fake = model.discriminator_forward(fake_images.detach(), labels)
+                d_fake_loss = criterion(d_fake, fake_labels)
+                
+                # Gradient penalty (optional)
+                alpha = torch.rand(batch_size, 1).to(device)
+                interpolated = (alpha * real_images + (1 - alpha) * fake_images.detach()).requires_grad_(True)
+                d_interpolated = model.discriminator_forward(interpolated, labels)
+                
+                d_loss = d_real_loss + d_fake_loss
+                d_loss.backward()
+                optimizer_D.step()
+
+            # Train Generator
+            for _ in range(2):  # Multiple G updates
+                optimizer_G.zero_grad()
+                noise = torch.randn(batch_size, model.latent_dim).to(device)
+                fake_images = model.generator_forward(noise, labels)
+                d_fake = model.discriminator_forward(fake_images, labels)
+                g_loss = criterion(d_fake, real_labels)
+                g_loss.backward()
+                optimizer_G.step()
+
+        # Update learning rates
+        scheduler_G.step()
+        scheduler_D.step()
+        
+        if (epoch + 1) % 10 == 0:
+            print(f'Epoch [{epoch+1}/{num_epochs}], D_loss: {d_loss.item():.4f}, G_loss: {g_loss.item():.4f}')
+
+
 def train_biggan(model, train_loader, optimizers, device, num_epochs):
     """
     Train BigGAN model
@@ -414,4 +308,4 @@ def train_biggan(model, train_loader, optimizers, device, num_epochs):
 
         if (epoch + 1) % 10 == 0:
             print(f'Epoch [{epoch+1}/{num_epochs}], D_loss: {d_loss.item():.4f}, G_loss: {g_loss.item():.4f}')
-                
+    

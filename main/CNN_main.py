@@ -4,8 +4,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import numpy as np
-from model import CNN
-from engine import train_model, evaluate_cnn
+from ..models.VAE_CNN import CNN
+from ..engine.engine import train_model, evaluate_cnn
 import argparse
 
 torch.serialization.add_safe_globals(["Subset"])

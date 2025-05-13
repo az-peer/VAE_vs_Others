@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import transforms, datasets
 from torchvision.utils import save_image
 from tqdm import tqdm
-from model import VariationalAutoEncoder, CNN
+from ..models.VAE_CNN import VariationalAutoEncoder, CNN
 import numpy as np
 import argparse
 from engine import train_model, inference, evaluate_cnn

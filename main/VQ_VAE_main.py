@@ -4,8 +4,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import numpy as np
-from model import VQVAE, VectorQuantizer
-from engine import train_model, evaluate_cnn
+from ..models.VAE_CNN import VQVAE, VectorQuantizer
+from ..engine.engine import train_model, inference
 import argparse
 from tqdm import tqdm
 import matplotlib.pyplot as plt
